@@ -12,8 +12,15 @@ esbuild
     outfile: "./dist/main.js",
     plugins: [GasPlugin],
     define: {
-      "process.env.APP_API_KEY": JSON.stringify(process.env.APP_API_KEY),
+      "process.env.SLACK_BOT_TOKEN": JSON.stringify(
+        process.env.SLACK_BOT_TOKEN
+      ),
+      "process.env.SLACK_SIGNING_SECRET": JSON.stringify(
+        process.env.SLACK_SIGNING_SECRET
+      ),
     },
+    sourcemap: "inline",
+    target: ["es2020"],
   })
   .catch((error) => {
     console.log("ビルドに失敗しました");
