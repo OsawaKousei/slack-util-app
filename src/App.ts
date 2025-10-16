@@ -22,8 +22,8 @@ export const doPost = (
   e: GoogleAppsScript.Events.DoPost
 ): GoogleAppsScript.Content.TextOutput => {
   // デバッグ出力: 受け取ったリクエストの内容をログに記録
-  console.log("Received request:", JSON.stringify(e));
-  console.log("Post data contents:", e.postData.contents);
+  Logger.log("Received request:", JSON.stringify(e));
+  Logger.log("Post data contents:", e.postData.contents);
 
   let payload: any;
 
@@ -37,12 +37,7 @@ export const doPost = (
     payload = e.parameter;
   }
 
-  console.log("Parsed payload:", JSON.stringify(payload));
-
-  // URL検証リクエストに対応 (JSON形式で来る)
-  if (payload.type === "url_verification") {
-    return ContentService.createTextOutput(payload.challenge);
-  }
+  Logger.log("Parsed payload:", JSON.stringify(payload));
 
   // スラッシュコマンドの処理
   if (payload.command) {
@@ -66,7 +61,7 @@ const handleHelloCommand = (payload: any) => {
 };
 
 /**
- * Slackにメッセージを投稿する汎用関数（完全デバッグモード）
+ * Slackにメッセージを投稿する汎用関数
  */
 const postMessage = (channelId: string, text: string): void => {
   // 1. トークンが正しく設定されているか確認
