@@ -18,14 +18,33 @@ export const doGet = (
 /**
  * Slackからのすべてのリクエストを受け取るメイン関数
  */
-export const doPost = (e: GoogleAppsScript.Events.DoPost) => {
+export const doPost = (
+  e: GoogleAppsScript.Events.DoPost
+): GoogleAppsScript.Content.TextOutput => {
   // デバッグ出力: 受け取ったリクエストの内容をログに記録
   console.log("Received request:", JSON.stringify(e));
   console.log("Post data contents:", e.postData.contents);
 
-  const payload = JSON.parse(e.postData.contents);
+  let payload: any;
 
-  // スラッシュコマンドを処理する
+  // try...catch構文でデータ形式を自動的に判別する
+  try {
+    // まずJSONとして解析を試みる (イベント、ボタン操作などはこちら)
+    payload = JSON.parse(e.postData.contents);
+  } catch (error) {
+    // JSON解析に失敗した場合、スラッシュコマンド形式と判断し e.parameter を使う
+    // GASは urlencoded 形式を自動で e.parameter に格納してくれる
+    payload = e.parameter;
+  }
+
+  console.log("Parsed payload:", JSON.stringify(payload));
+
+  // URL検証リクエストに対応 (JSON形式で来る)
+  if (payload.type === "url_verification") {
+    return ContentService.createTextOutput(payload.challenge);
+  }
+
+  // スラッシュコマンドの処理
   if (payload.command) {
     switch (payload.command) {
       case "/hello":
@@ -33,7 +52,6 @@ export const doPost = (e: GoogleAppsScript.Events.DoPost) => {
     }
   }
 
-  // 想定外のリクエストは無視
   return ContentService.createTextOutput();
 };
 
@@ -48,10 +66,20 @@ const handleHelloCommand = (payload: any) => {
 };
 
 /**
- * Slackにメッセージを投稿する汎用関数
+ * Slackにメッセージを投稿する汎用関数（完全デバッグモード）
  */
-const postMessage = (channelId: string, text: string) => {
+const postMessage = (channelId: string, text: string): void => {
+  // 1. トークンが正しく設定されているか確認
+  if (!SLACK_BOT_TOKEN || !SLACK_BOT_TOKEN.startsWith("xoxb-")) {
+    Logger.log(
+      "ERROR: SLACK_BOT_TOKEN is invalid or missing in build process."
+    );
+    return; // トークンがなければ処理を中断
+  }
+
+  Logger.log(`Attempting to post to channel: ${channelId}`);
   const url = "https://slack.com/api/chat.postMessage";
+
   const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
     method: "post",
     contentType: "application/json; charset=utf-8",
@@ -62,7 +90,25 @@ const postMessage = (channelId: string, text: string) => {
       channel: channelId,
       text: text,
     }),
+    muteHttpExceptions: true, // 2. エラーレスポンスも正常に受け取る
   };
 
-  UrlFetchApp.fetch(url, options);
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
+    const responseBody = response.getContentText();
+
+    // 3. Slackからの応答をすべてログに出力【最重要】
+    Logger.log(`Slack API Response Code: ${responseCode}`);
+    Logger.log(`Slack API Response Body: ${responseBody}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      Logger.log("FATAL: Failed to call Slack API. Error: " + error.message);
+    } else {
+      Logger.log(
+        "FATAL: Failed to call Slack API. Unknown error: " +
+          JSON.stringify(error)
+      );
+    }
+  }
 };
