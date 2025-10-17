@@ -2,7 +2,7 @@
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET;
 const LOG_SPREADSHEET_ID = process.env.LOG_SPREADSHEET_ID;
-const LOG_SHEET_NAME = process.env.LOG_SHEET_NAME || "Logs";
+const LOG_SHEET_NAME = "Logs";
 
 /**
  * SlackからのURL検証(GETリクエスト)に対応するための関数
