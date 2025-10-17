@@ -1,1 +1,0 @@
-gcloud functions deploy slack-util-app --gen2 --runtime=nodejs20 --region=asia-northeast1 --source=. --entry-point=slackApp --trigger-http --allow-unauthenticated --set-secrets=SLACK_BOT_TOKEN=SLACK_BOT_TOKEN:latest,SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest --project=slack-util-app
