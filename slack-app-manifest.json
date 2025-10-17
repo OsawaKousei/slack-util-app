@@ -21,6 +21,12 @@
         "url": "your-app-url-here",
         "description": "Retrieves recent emails from Gmail and posts them to Slack.",
         "should_escape": false
+      },
+      {
+        "command": "/logtest",
+        "url": "your-app-url-here",
+        "description": "Tests spreadsheet logging functionality.",
+        "should_escape": false
       }
     ]
   },

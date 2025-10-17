@@ -1,4 +1,8 @@
-import { handleHelloCommand, handleMailCommand } from "./command";
+import {
+  handleHelloCommand,
+  handleMailCommand,
+  handleLogTestCommand,
+} from "./command";
 import { logToSheet } from "./util";
 
 /**
@@ -40,6 +44,9 @@ export const doPost = (
         break;
       case "/mail":
         handleMailCommand(payload);
+        break;
+      case "/logtest":
+        handleLogTestCommand(payload);
         break;
       default:
         logToSheet(`Received unknown command: ${payload.command}`, "ERROR");

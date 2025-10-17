@@ -32,3 +32,35 @@ export const handleMailCommand = (payload: any) => {
     postMessage(payload.channel_id, "メールの取得中にエラーが発生しました。");
   }
 };
+
+/**
+ * /logtest コマンドを処理する関数
+ */
+export const handleLogTestCommand = (payload: any) => {
+  try {
+    const timestamp = new Date().toISOString();
+    const userName = payload.user_name || "Unknown User";
+    const channelName = payload.channel_name || "Unknown Channel";
+
+    // デバッグメッセージをスプレッドシートに出力
+    logToSheet(
+      `Log test command executed by ${userName} in #${channelName} at ${timestamp}`,
+      "DEBUG"
+    );
+
+    // Slackに成功メッセージを送信
+    postMessage(
+      payload.channel_id,
+      `✅ ログテスト成功！スプレッドシートにデバッグログを出力しました。\n実行者: ${userName}\n実行時刻: ${timestamp}`
+    );
+  } catch (error: any) {
+    logToSheet(
+      "ERROR: Failed to process logtest command. " + error.message,
+      "ERROR"
+    );
+    postMessage(
+      payload.channel_id,
+      "ログテストの実行中にエラーが発生しました。"
+    );
+  }
+};
