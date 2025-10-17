@@ -237,7 +237,10 @@ export const archiveSlackMessages = (): void => {
       throw new Error("ARCHIVE_DRIVE_ID is not set or empty");
     }
 
-    logToSheet(`Debug: Starting simplified archive process`, "INFO");
+    logToSheet(
+      `Debug: Starting simplified archive process with Drive ID: ${driveId}`,
+      "INFO"
+    );
 
     // 現在時刻を取得
     const now = new Date();
@@ -247,15 +250,44 @@ export const archiveSlackMessages = (): void => {
       "yyyyMMdd-HHmmss"
     )}`;
 
-    // Google Driveに空のフォルダを作成
-    const parentFolder = DriveApp.getFolderById(driveId);
-    const newFolder = parentFolder.createFolder(folderName);
-    const folderUrl = newFolder.getUrl();
+    logToSheet(`Debug: Attempting to access Drive folder...`, "INFO");
 
-    logToSheet(
-      `Debug: Created empty folder: ${folderName} at ${folderUrl}`,
-      "INFO"
-    );
+    // Google Driveに空のフォルダを作成
+    let parentFolder;
+    try {
+      parentFolder = DriveApp.getFolderById(driveId);
+      logToSheet(
+        `Debug: Successfully accessed folder: ${parentFolder.getName()}`,
+        "INFO"
+      );
+    } catch (driveError: any) {
+      logToSheet(
+        `ERROR: Failed to access Drive folder with ID: ${driveId}. Error: ${driveError.message}`,
+        "ERROR"
+      );
+      throw new Error(
+        `Google Driveフォルダへのアクセスに失敗しました。フォルダID: ${driveId}, エラー: ${driveError.message}`
+      );
+    }
+
+    logToSheet(`Debug: Creating new folder: ${folderName}`, "INFO");
+
+    let newFolder;
+    let folderUrl;
+    try {
+      newFolder = parentFolder.createFolder(folderName);
+      folderUrl = newFolder.getUrl();
+      logToSheet(
+        `Debug: Successfully created folder: ${folderName} at ${folderUrl}`,
+        "INFO"
+      );
+    } catch (createError: any) {
+      logToSheet(
+        `ERROR: Failed to create folder. Error: ${createError.message}`,
+        "ERROR"
+      );
+      throw new Error(`フォルダの作成に失敗しました: ${createError.message}`);
+    }
 
     // 成功メッセージを投稿
     const successMessage =
@@ -273,10 +305,8 @@ export const archiveSlackMessages = (): void => {
     postMessage(channel, successMessage);
     logToSheet(`Debug: Archive completed successfully`, "INFO");
   } catch (error: any) {
-    postMessage(
-      channel,
-      `❌ デバッグ: アーカイブ処理中にエラーが発生しました: ${error.message}`
-    );
+    const errorMsg = `デバッグ: アーカイブ処理中にエラーが発生しました: ${error.message}`;
+    postMessage(channel, `❌ ${errorMsg}`);
     logToSheet(`ERROR: Debug archive failed. ${error.message}`, "ERROR");
     throw error;
   }
