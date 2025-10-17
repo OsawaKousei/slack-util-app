@@ -1,4 +1,9 @@
-import { postMessage, logToSheet, postRecentEmails } from "./util";
+import {
+  postMessage,
+  logToSheet,
+  postRecentEmails,
+  archiveSlackMessages,
+} from "./util";
 
 /**
  * /hello コマンドを処理する関数
@@ -62,5 +67,24 @@ export const handleLogTestCommand = (payload: any) => {
       payload.channel_id,
       "ログテストの実行中にエラーが発生しました。"
     );
+  }
+};
+
+/**
+ * /slack-archive コマンドを処理する関数
+ */
+export const handleArchiveCommand = (payload: any) => {
+  try {
+    // 処理受付の通知
+    postMessage(payload.channel_id, "アーカイブ処理を開始します...");
+
+    // Slackメッセージのアーカイブを実行
+    archiveSlackMessages(payload.channel_id);
+  } catch (error: any) {
+    logToSheet(
+      "ERROR: Failed to process archive command. " + error.message,
+      "ERROR"
+    );
+    postMessage(payload.channel_id, "アーカイブ処理中にエラーが発生しました。");
   }
 };

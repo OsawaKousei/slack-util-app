@@ -27,12 +27,26 @@
         "url": "your-app-url-here",
         "description": "Tests spreadsheet logging functionality.",
         "should_escape": false
+      },
+      {
+        "command": "/slack-archive",
+        "url": "your-app-url-here",
+        "description": "Archives Slack messages to Google Drive.",
+        "should_escape": false
       }
     ]
   },
   "oauth_config": {
     "scopes": {
-      "bot": ["commands", "chat:write"]
+      "bot": [
+        "commands",
+        "chat:write",
+        "channels:read",
+        "channels:history",
+        "channels:join",
+        "groups:read",
+        "groups:history"
+      ]
     }
   },
   "settings": {

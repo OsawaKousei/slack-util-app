@@ -2,6 +2,7 @@ import {
   handleHelloCommand,
   handleMailCommand,
   handleLogTestCommand,
+  handleArchiveCommand,
 } from "./command";
 import { logToSheet } from "./util";
 
@@ -47,6 +48,9 @@ export const doPost = (
         break;
       case "/logtest":
         handleLogTestCommand(payload);
+        break;
+      case "/slack-archive":
+        handleArchiveCommand(payload);
         break;
       default:
         logToSheet(`Received unknown command: ${payload.command}`, "ERROR");
