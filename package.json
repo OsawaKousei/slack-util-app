@@ -1,24 +1,23 @@
 {
-  "name": "empty-gas-app",
+  "name": "slack-util-app",
   "version": "1.0.0",
   "description": "",
+  "homepage": "https://github.com/OsawaKousei/slack-util-app#readme",
+  "bugs": {
+    "url": "https://github.com/OsawaKousei/slack-util-app/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OsawaKousei/slack-util-app.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "build": "node esbuild.js && shx cp appsscript.json dist/",
-    "push": "clasp push",
-    "open": "clasp open",
-    "deploy": "npm run build && npm run push"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
-  "type": "module",
-  "devDependencies": {
-    "@types/google-apps-script": "^1.0.99",
-    "dotenv": "^17.2.1",
-    "esbuild": "^0.25.9",
-    "esbuild-gas-plugin": "^0.10.0",
-    "shx": "^0.4.0",
-    "typescript": "^5.9.2"
+  "dependencies": {
+    "@slack/bolt": "^4.5.0"
   }
 }
