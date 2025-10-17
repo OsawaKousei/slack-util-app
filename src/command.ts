@@ -81,13 +81,13 @@ export const handleArchiveCommand = (payload: any) => {
     // 処理受付の通知を即座に返す
     postMessage(
       payload.channel_id,
-      "アーカイブ処理を受け付けました。処理が完了次第、結果を通知します。"
+      "アーカイブ処理を受け付けました。処理が完了次第、指定のチャンネルに通知します。"
     );
 
     // トリガーを作成して少し後に実行(30秒のタイムアウトを回避)
     ScriptApp.newTrigger("executeArchiveSlackMessages")
       .timeBased()
-      .after(1) // 5秒後に実行
+      .after(1 * 1000) // 1秒後に実行
       .create();
 
     logToSheet("Archive trigger created successfully", "INFO");

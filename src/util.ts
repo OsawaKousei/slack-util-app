@@ -226,10 +226,9 @@ const getChannelHistory = (
  * Slackメッセージをアーカイブし、Google Driveに保存する関数
  */
 export const archiveSlackMessages = (): void => {
+  // スクリプトプロパティからチャンネルIDを取得
+  const channel = getEnv("ARCHIVE_CHANNEL_ID");
   try {
-    // スクリプトプロパティからチャンネルIDを取得
-    const channel = getEnv("ARCHIVE_CHANNEL_ID");
-
     // 環境変数から設定を取得
     const lookBackHours = parseInt(getEnv("ARCHIVE_LOOK_BACK"));
     const driveId = getEnv("ARCHIVE_DRIVE_ID");
@@ -355,6 +354,10 @@ export const archiveSlackMessages = (): void => {
         // API rate limitを避けるため、少し待機
         Utilities.sleep(1000);
       } catch (error: any) {
+        postMessage(
+          channel,
+          `⚠️ チャンネル #${ch.name} のアーカイブ中にエラーが発生しました: ${error.message}`
+        );
         logToSheet(
           `WARNING: Failed to archive channel #${ch.name}: ${error.message}`,
           "WARNING"
@@ -477,6 +480,10 @@ export const archiveSlackMessages = (): void => {
       `Archive completed: ${totalMessageCount} messages from ${successfulChannels} channels saved to ${fileName} (${totalSkipped} channels skipped: ${skippedPrivateChannels} private, ${skippedArchivedChannels} archived, ${skippedOtherChannels} other)`
     );
   } catch (error: any) {
+    postMessage(
+      channel,
+      `❌ アーカイブ処理中にエラーが発生しました: ${error.message}`
+    );
     logToSheet(
       `ERROR: Failed to archive Slack messages. ${error.message}`,
       "ERROR"
