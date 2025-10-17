@@ -36,7 +36,7 @@ export const doPost = (
   if (payload.command) {
     switch (payload.command) {
       case "/hello":
-        handleHelloCommand(payload); // /helloコマンドの処理へ
+        handleHelloCommand(payload);
         break;
       default:
         logToSheet(`Received unknown command: ${payload.command}`, "ERROR");
@@ -49,5 +49,6 @@ export const doPost = (
     );
   }
 
+  // レスポンスを返す（Slack APIの仕様に従う）
   return ContentService.createTextOutput();
 };
