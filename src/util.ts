@@ -45,8 +45,11 @@ export const logToSheet = (message: string, level: string = "INFO"): void => {
 /**
  * 指定期間内に受信したメールを取得してSlackに投稿する関数
  */
-export const postRecentEmails = (channel: string): void => {
+export const postRecentEmails = (): void => {
   try {
+    // スクリプトプロパティからチャンネルIDを取得
+    const channel = getEnv("MAIL_CHANNEL_ID");
+
     // 環境変数から期間(時間単位)を取得
     const lookBackHours = parseInt(getEnv("MAIL_LOOK_BACK"));
 
@@ -107,11 +110,6 @@ export const postRecentEmails = (channel: string): void => {
       });
     });
 
-    // 完了メッセージを投稿
-    postMessage(
-      channel,
-      `✅ メール投稿が完了しました。合計 ${totalMessageCount} 件のメッセージを投稿しました。`
-    );
     logToSheet(
       `Posted ${totalMessageCount} messages from ${threads.length} threads to Slack channel ${channel}`
     );
@@ -227,8 +225,11 @@ const getChannelHistory = (
 /**
  * Slackメッセージをアーカイブし、Google Driveに保存する関数
  */
-export const archiveSlackMessages = (channel: string): void => {
+export const archiveSlackMessages = (): void => {
   try {
+    // スクリプトプロパティからチャンネルIDを取得
+    const channel = getEnv("ARCHIVE_CHANNEL_ID");
+
     // 環境変数から設定を取得
     const lookBackHours = parseInt(getEnv("ARCHIVE_LOOK_BACK"));
     const driveId = getEnv("ARCHIVE_DRIVE_ID");
@@ -375,31 +376,66 @@ export const archiveSlackMessages = (channel: string): void => {
       "yyyyMMdd-HHmmss"
     )}.json`;
     const fileContent = JSON.stringify(archiveData, null, 2);
+    const fileSizeKB = Math.round(fileContent.length / 1024);
 
     logToSheet(
-      `Preparing to save archive file: ${fileName} (${fileContent.length} bytes)`,
+      `Preparing to save archive file: ${fileName} (${fileContent.length} bytes = ${fileSizeKB} KB)`,
       "INFO"
     );
 
-    // Google Driveに保存
+    // ファイルサイズの警告
+    if (fileSizeKB > 1024) {
+      logToSheet(
+        `WARNING: Large file size (${fileSizeKB} KB). This may take longer to save.`,
+        "WARNING"
+      );
+    }
+
+    // Google Driveに保存（リトライ機能付き）
     let file;
     let fileUrl;
-    try {
-      const folder = DriveApp.getFolderById(driveId);
-      logToSheet(`Successfully accessed Drive folder: ${driveId}`, "INFO");
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError;
 
-      file = folder.createFile(fileName, fileContent, "application/json");
-      fileUrl = file.getUrl();
+    while (retryCount < maxRetries) {
+      try {
+        const folder = DriveApp.getFolderById(driveId);
+        if (retryCount === 0) {
+          logToSheet(`Successfully accessed Drive folder: ${driveId}`, "INFO");
+        }
 
-      logToSheet(`Successfully created file: ${fileName}`, "INFO");
-    } catch (driveError: any) {
-      logToSheet(
-        `ERROR: Failed to save file to Google Drive. Folder ID: ${driveId}, Error: ${driveError.message}`,
-        "ERROR"
-      );
-      throw new Error(
-        `Failed to save archive to Google Drive (Folder ID: ${driveId}): ${driveError.message}`
-      );
+        // Blobを使用してファイルを作成（大きなファイルに対してより安定）
+        const blob = Utilities.newBlob(
+          fileContent,
+          "application/json",
+          fileName
+        );
+        file = folder.createFile(blob);
+        fileUrl = file.getUrl();
+
+        logToSheet(`Successfully created file: ${fileName}`, "INFO");
+        break; // 成功したらループを抜ける
+      } catch (driveError: any) {
+        lastError = driveError;
+        retryCount++;
+
+        if (retryCount < maxRetries) {
+          logToSheet(
+            `Retry ${retryCount}/${maxRetries}: Failed to save file. Waiting 2 seconds... Error: ${driveError.message}`,
+            "WARNING"
+          );
+          Utilities.sleep(2000); // 2秒待機してリトライ
+        } else {
+          logToSheet(
+            `ERROR: Failed to save file to Google Drive after ${maxRetries} attempts. Folder ID: ${driveId}, Error: ${driveError.message}`,
+            "ERROR"
+          );
+          throw new Error(
+            `Failed to save archive to Google Drive after ${maxRetries} attempts (Folder ID: ${driveId}): ${driveError.message}`
+          );
+        }
+      }
     }
 
     const totalSkipped =
