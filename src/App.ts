@@ -10,7 +10,6 @@ const LOG_SHEET_NAME = "Logs";
 export const doGet = (
   e: GoogleAppsScript.Events.DoGet
 ): GoogleAppsScript.Content.TextOutput => {
-  logToSheet(`doGet called with challenge: ${e.parameter.challenge}`, "INFO");
   // Slackから送られてきた 'challenge' パラメータを取得
   const challenge = e.parameter.challenge;
 
@@ -24,10 +23,6 @@ export const doGet = (
 export const doPost = (
   e: GoogleAppsScript.Events.DoPost
 ): GoogleAppsScript.Content.TextOutput => {
-  // デバッグ出力: 受け取ったリクエストの内容をログに記録
-  logToSheet(`Received request: ${JSON.stringify(e)}`, "DEBUG");
-  logToSheet(`Post data contents: ${e.postData.contents}`, "DEBUG");
-
   let payload: any;
 
   // try...catch構文でデータ形式を自動的に判別する
@@ -40,19 +35,21 @@ export const doPost = (
     payload = e.parameter;
   }
 
-  logToSheet(`Parsed payload: ${JSON.stringify(payload)}`, "DEBUG");
-
-  // URL検証リクエストに対応 (JSON形式で来る)
-  if (payload.type === "url_verification") {
-    return ContentService.createTextOutput(payload.challenge);
-  }
-
   // スラッシュコマンドの処理
   if (payload.command) {
     switch (payload.command) {
       case "/hello":
-        return handleHelloCommand(payload); // /helloコマンドの処理へ
+        handleHelloCommand(payload); // /helloコマンドの処理へ
+        break;
+      default:
+        logToSheet(`Received unknown command: ${payload.command}`, "ERROR");
+        break;
     }
+  } else {
+    logToSheet(
+      `Received unsupported payload format. ${JSON.stringify(payload)}`,
+      "ERROR"
+    );
   }
 
   return ContentService.createTextOutput();
@@ -62,30 +59,20 @@ export const doPost = (
  * /hello コマンドを処理する関数
  */
 const handleHelloCommand = (payload: any) => {
-  logToSheet(
-    `Handling /hello command for channel: ${payload.channel_id}`,
-    "INFO"
-  );
-  // Slack APIにメッセージを投稿する
-  postMessage(payload.channel_id, "Hello!");
-  // Slackに即時応答を返す(これがないとエラー表示になる)
-  return ContentService.createTextOutput();
+  try {
+    postMessage(payload.channel_id, "Hello!");
+  } catch (error: any) {
+    logToSheet(
+      "ERROR: Failed to post message to Slack. " + error.message,
+      "ERROR"
+    );
+  }
 };
 
 /**
- * Slackにメッセージを投稿する汎用関数（完全デバッグモード）
+ * Slackにメッセージを投稿する汎用関数
  */
 const postMessage = (channelId: string, text: string): void => {
-  // 1. トークンが正しく設定されているか確認
-  if (!SLACK_BOT_TOKEN || !SLACK_BOT_TOKEN.startsWith("xoxb-")) {
-    logToSheet(
-      "ERROR: SLACK_BOT_TOKEN is invalid or missing in build process.",
-      "ERROR"
-    );
-    return; // トークンがなければ処理を中断
-  }
-
-  logToSheet(`Attempting to post to channel: ${channelId}`, "INFO");
   const url = "https://slack.com/api/chat.postMessage";
 
   const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
@@ -98,31 +85,9 @@ const postMessage = (channelId: string, text: string): void => {
       channel: channelId,
       text: text,
     }),
-    muteHttpExceptions: true, // 2. エラーレスポンスも正常に受け取る
   };
 
-  try {
-    const response = UrlFetchApp.fetch(url, options);
-    const responseCode = response.getResponseCode();
-    const responseBody = response.getContentText();
-
-    // 3. Slackからの応答をすべてログに出力【最重要】
-    logToSheet(`Slack API Response Code: ${responseCode}`, "INFO");
-    logToSheet(`Slack API Response Body: ${responseBody}`, "INFO");
-  } catch (error) {
-    if (error instanceof Error) {
-      logToSheet(
-        "FATAL: Failed to call Slack API. Error: " + error.message,
-        "ERROR"
-      );
-    } else {
-      logToSheet(
-        "FATAL: Failed to call Slack API. Unknown error: " +
-          JSON.stringify(error),
-        "ERROR"
-      );
-    }
-  }
+  UrlFetchApp.fetch(url, options);
 };
 
 /**
