@@ -223,14 +223,15 @@ const getChannelHistory = (
 };
 
 /**
- * Slackメッセージをアーカイブし、Google Driveに保存する関数（デバッグ用簡略版）
+ * Slackメッセージをアーカイブし、Google Driveに保存する関数
  */
 export const archiveSlackMessages = (): void => {
   // スクリプトプロパティからチャンネルIDを取得
-  const channel = getEnv("ARCHIVE_CHANNEL_ID");
+  const notificationChannel = getEnv("ARCHIVE_CHANNEL_ID");
   try {
-    // 環境変数からDrive IDを取得
+    // 環境変数から設定を取得
     const driveId = getEnv("ARCHIVE_DRIVE_ID");
+    const lookBackDays = parseInt(getEnv("ARCHIVE_LOOK_BACK"));
 
     // 設定の検証
     if (!driveId || driveId.trim() === "") {
@@ -238,26 +239,27 @@ export const archiveSlackMessages = (): void => {
     }
 
     logToSheet(
-      `Debug: Starting simplified archive process with Drive ID: ${driveId}`,
+      `Starting archive process with Drive ID: ${driveId}, Look back: ${lookBackDays} days`,
       "INFO"
     );
 
-    // 現在時刻を取得
+    // 現在時刻と対象期間の計算
     const now = new Date();
-    const folderName = `debug-archive-${Utilities.formatDate(
+    const oldestTimestamp = Math.floor(
+      (now.getTime() - lookBackDays * 24 * 60 * 60 * 1000) / 1000
+    );
+    const folderName = `slack-archive-${Utilities.formatDate(
       now,
       "JST",
       "yyyyMMdd-HHmmss"
     )}`;
 
-    logToSheet(`Debug: Attempting to access Drive folder...`, "INFO");
-
-    // Google Driveに空のフォルダを作成
+    // Google Driveフォルダへのアクセスとフォルダ作成
     let parentFolder;
     try {
       parentFolder = DriveApp.getFolderById(driveId);
       logToSheet(
-        `Debug: Successfully accessed folder: ${parentFolder.getName()}`,
+        `Successfully accessed folder: ${parentFolder.getName()}`,
         "INFO"
       );
     } catch (driveError: any) {
@@ -266,48 +268,150 @@ export const archiveSlackMessages = (): void => {
         "ERROR"
       );
       throw new Error(
-        `Google Driveフォルダへのアクセスに失敗しました。フォルダID: ${driveId}, エラー: ${driveError.message}`
+        `Google Driveフォルダへのアクセスに失敗しました。フォルダID: ${driveId}`
       );
     }
 
-    logToSheet(`Debug: Creating new folder: ${folderName}`, "INFO");
+    const newFolder = parentFolder.createFolder(folderName);
+    const folderUrl = newFolder.getUrl();
+    logToSheet(`Created archive folder: ${folderName}`, "INFO");
 
-    let newFolder;
-    let folderUrl;
-    try {
-      newFolder = parentFolder.createFolder(folderName);
-      folderUrl = newFolder.getUrl();
-      logToSheet(
-        `Debug: Successfully created folder: ${folderName} at ${folderUrl}`,
-        "INFO"
-      );
-    } catch (createError: any) {
-      logToSheet(
-        `ERROR: Failed to create folder. Error: ${createError.message}`,
-        "ERROR"
-      );
-      throw new Error(`フォルダの作成に失敗しました: ${createError.message}`);
+    // Slackチャンネル一覧を取得
+    logToSheet("Fetching Slack channels...", "INFO");
+    const channels = getSlackChannels();
+    logToSheet(`Found ${channels.length} channels`, "INFO");
+
+    let processedChannels = 0;
+    let totalMessages = 0;
+    let skippedChannels = 0;
+
+    // 各チャンネルを処理
+    for (const channel of channels) {
+      try {
+        const channelId = channel.id;
+        const channelName = channel.name;
+        const isPrivate = channel.is_private;
+        const isMember = channel.is_member;
+
+        logToSheet(
+          `Processing channel: #${channelName} (ID: ${channelId}, Private: ${isPrivate}, Member: ${isMember})`,
+          "INFO"
+        );
+
+        // プライベートチャンネルでボットがメンバーでない場合はスキップ
+        if (isPrivate && !isMember) {
+          logToSheet(
+            `Skipping private channel #${channelName}: Bot is not a member`,
+            "WARNING"
+          );
+          skippedChannels++;
+          continue;
+        }
+
+        // パブリックチャンネルで参加していない場合は参加を試みる
+        if (!isPrivate && !isMember) {
+          logToSheet(`Attempting to join channel #${channelName}...`, "INFO");
+          const joined = joinChannel(channelId);
+          if (!joined) {
+            logToSheet(
+              `Failed to join channel #${channelName}, skipping`,
+              "WARNING"
+            );
+            skippedChannels++;
+            continue;
+          }
+          // 参加後、少し待機
+          Utilities.sleep(1000);
+        }
+
+        // メッセージ履歴を取得
+        const messages = getChannelHistory(channelId, oldestTimestamp);
+
+        if (messages.length === 0) {
+          logToSheet(
+            `No messages found in #${channelName} for the specified period`,
+            "INFO"
+          );
+        } else {
+          // メッセージをJSON形式でファイルに保存
+          const fileName = `${channelName}.json`;
+          const fileContent = JSON.stringify(
+            {
+              channel_id: channelId,
+              channel_name: channelName,
+              is_private: isPrivate,
+              archive_date: now.toISOString(),
+              oldest_timestamp: oldestTimestamp,
+              message_count: messages.length,
+              messages: messages,
+            },
+            null,
+            2
+          );
+
+          newFolder.createFile(fileName, fileContent, MimeType.PLAIN_TEXT);
+          logToSheet(
+            `Saved ${messages.length} messages from #${channelName} to ${fileName}`,
+            "INFO"
+          );
+
+          totalMessages += messages.length;
+        }
+
+        processedChannels++;
+
+        // API rate limitを避けるため、少し待機
+        Utilities.sleep(1000);
+      } catch (channelError: any) {
+        logToSheet(
+          `ERROR processing channel ${channel.name}: ${channelError.message}`,
+          "ERROR"
+        );
+        skippedChannels++;
+      }
     }
+
+    // サマリーファイルを作成
+    const summaryContent = JSON.stringify(
+      {
+        archive_date: now.toISOString(),
+        look_back_days: lookBackDays,
+        oldest_timestamp: oldestTimestamp,
+        total_channels: channels.length,
+        processed_channels: processedChannels,
+        skipped_channels: skippedChannels,
+        total_messages: totalMessages,
+      },
+      null,
+      2
+    );
+    newFolder.createFile("_summary.json", summaryContent, MimeType.PLAIN_TEXT);
 
     // 成功メッセージを投稿
     const successMessage =
-      `✅ デバッグ: アーカイブ処理が完了しました！\n\n` +
+      `✅ アーカイブ処理が完了しました！\n\n` +
       `📊 *処理サマリー*\n` +
       `• 実行時刻: ${Utilities.formatDate(
         now,
         "JST",
         "yyyy/MM/dd HH:mm:ss"
       )}\n` +
-      `• フォルダ名: ${folderName}\n` +
+      `• 対象期間: 過去${lookBackDays}日間\n` +
+      `• 処理チャンネル数: ${processedChannels}/${channels.length}\n` +
+      `• スキップ: ${skippedChannels}チャンネル\n` +
+      `• 取得メッセージ数: ${totalMessages}件\n` +
       `• 保存先: <${folderUrl}|Google Drive>\n\n` +
-      `💡 これはデバッグ用の簡略版です。Slack APIは使用していません。`;
+      `フォルダ名: \`${folderName}\``;
 
-    postMessage(channel, successMessage);
-    logToSheet(`Debug: Archive completed successfully`, "INFO");
+    postMessage(notificationChannel, successMessage);
+    logToSheet(
+      `Archive completed successfully: ${processedChannels} channels, ${totalMessages} messages`,
+      "INFO"
+    );
   } catch (error: any) {
-    const errorMsg = `デバッグ: アーカイブ処理中にエラーが発生しました: ${error.message}`;
-    postMessage(channel, `❌ ${errorMsg}`);
-    logToSheet(`ERROR: Debug archive failed. ${error.message}`, "ERROR");
+    const errorMsg = `アーカイブ処理中にエラーが発生しました: ${error.message}`;
+    postMessage(notificationChannel, `❌ ${errorMsg}`);
+    logToSheet(`ERROR: Archive failed. ${error.message}`, "ERROR");
     throw error;
   }
 };
