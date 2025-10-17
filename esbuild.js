@@ -18,6 +18,9 @@ esbuild
       "process.env.SLACK_SIGNING_SECRET": JSON.stringify(
         process.env.SLACK_SIGNING_SECRET
       ),
+      "process.env.LOG_SPREADSHEET_ID": JSON.stringify(
+        process.env.LOG_SPREADSHEET_ID
+      ),
     },
     sourcemap: "inline",
     target: ["es2020"],
