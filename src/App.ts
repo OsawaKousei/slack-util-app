@@ -5,6 +5,7 @@ import {
   handleArchiveCommand,
 } from "./command";
 import { logToSheet } from "./util";
+import { verifySlackRequest, createUnauthorizedResponse } from "./auth";
 
 /**
  * SlackからのURL検証(GETリクエスト)に対応するための関数
@@ -35,6 +36,17 @@ export const doPost = (
     // JSON解析に失敗した場合、スラッシュコマンド形式と判断し e.parameter を使う
     // GASは urlencoded 形式を自動で e.parameter に格納してくれる
     payload = e.parameter;
+  }
+
+  // ========================================
+  // 認証処理 (Verification Token)
+  // ========================================
+  if (!verifySlackRequest(payload)) {
+    logToSheet(
+      "Unauthorized request rejected. Token verification failed.",
+      "ERROR"
+    );
+    return createUnauthorizedResponse();
   }
 
   // スラッシュコマンドの処理

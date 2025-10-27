@@ -158,7 +158,13 @@ clasp create --type standalone --title "Slack Util App"
 2. "Install to Workspace" をクリック
 3. 表示される "Bot User OAuth Token" (`xoxb-...` で始まる) をコピー
 
-#### 4.4. チャンネル ID の取得
+#### 4.4. Verification Token の取得（認証用）
+
+1. "Basic Information" ページに移動
+2. "App Credentials" セクションまでスクロール
+3. "Verification Token" をコピー
+
+#### 4.5. チャンネル ID の取得
 
 1. Slack アプリで対象チャンネルを開く
 2. チャンネル名をクリック → "About" タブ
@@ -180,15 +186,16 @@ clasp open
 
 GAS エディタで「プロジェクトの設定」→「スクリプト プロパティ」に以下を追加：
 
-| プロパティ名         | 説明                                      | 例                    |
-| -------------------- | ----------------------------------------- | --------------------- |
-| `SLACK_BOT_TOKEN`    | Slack Bot User OAuth Token                | `xoxb-1234567890-...` |
-| `LOG_SPREADSHEET_ID` | ログ記録用スプレッドシートの ID           | `1ABC...XYZ`          |
-| `MAIL_CHANNEL_ID`    | メール投稿先チャンネル ID                 | `C01234567`           |
-| `MAIL_LOOK_BACK`     | メール取得期間（時間）                    | `24`                  |
-| `ARCHIVE_CHANNEL_ID` | アーカイブ通知先チャンネル ID             | `C01234567`           |
-| `ARCHIVE_DRIVE_ID`   | アーカイブ保存先 Google Drive フォルダ ID | `1ABC...XYZ`          |
-| `ARCHIVE_LOOK_BACK`  | アーカイブ対象期間（日数）                | `30`                  |
+| プロパティ名               | 説明                                      | 例                    |
+| -------------------------- | ----------------------------------------- | --------------------- |
+| `SLACK_BOT_TOKEN`          | Slack Bot User OAuth Token                | `xoxb-1234567890-...` |
+| `SLACK_VERIFICATION_TOKEN` | Slack Verification Token（認証用）        | `uLdvxyZUiPOq8...`    |
+| `LOG_SPREADSHEET_ID`       | ログ記録用スプレッドシートの ID           | `1ABC...XYZ`          |
+| `MAIL_CHANNEL_ID`          | メール投稿先チャンネル ID                 | `C01234567`           |
+| `MAIL_LOOK_BACK`           | メール取得期間（時間）                    | `24`                  |
+| `ARCHIVE_CHANNEL_ID`       | アーカイブ通知先チャンネル ID             | `C01234567`           |
+| `ARCHIVE_DRIVE_ID`         | アーカイブ保存先 Google Drive フォルダ ID | `1ABC...XYZ`          |
+| `ARCHIVE_LOOK_BACK`        | アーカイブ対象期間（日数）                | `30`                  |
 
 ### 6. デプロイ
 
@@ -320,6 +327,7 @@ slack-util-app/
 │   ├── main.ts           # エントリーポイント（グローバル関数のエクスポート）
 │   ├── App.ts            # doGet/doPost ハンドラー
 │   ├── command.ts        # スラッシュコマンドの処理ロジック
+│   ├── auth.ts           # 認証処理（Verification Token検証）
 │   └── util.ts           # ユーティリティ関数（Slack API、Gmail、Drive等）
 ├── dist/                 # ビルド出力ディレクトリ（自動生成）
 │   ├── main.js          # バンドル・ミニファイ済み JS
@@ -408,7 +416,12 @@ global.executeArchiveSlackMessages = executeArchiveSlackMessages; // トリガ�
 #### `App.ts` - リクエストハンドラー
 
 - `doGet()`: Slack の URL 検証（challenge パラメータを返却）
-- `doPost()`: スラッシュコマンドのルーティング
+- `doPost()`: スラッシュコマンドのルーティングと認証処理
+
+#### `auth.ts` - 認証処理
+
+- `verifySlackRequest()`: Verification Token による認証
+- `createUnauthorizedResponse()`: 認証失敗時のレスポンス生成
 
 #### `command.ts` - コマンド処理
 
@@ -488,6 +501,60 @@ const myVar = getEnv("MY_VARIABLE");
 ```
 
 ## トラブルシューティング
+
+### 認証に関する注意事項
+
+このアプリケーションでは、**Verification Token（検証トークン）** を使用した認証を実装しています。
+
+#### ⚠️ セキュリティ上の重要な注意
+
+**この認証方法は Slack によって非推奨とされています。**
+
+理由：
+
+- トークン自体がリクエストの body に含まれてネットワークを流れる
+- トークンが漏洩した場合、なりすましが可能になる
+- リプレイ攻撃（同じリクエストの使い回し）を防ぐことができない
+
+#### なぜこの方法を採用しているのか
+
+本来、Slack は **Signing Secret（署名シークレット）** を使った署名検証を推奨しています。この方法では：
+
+- 秘密鍵とタイムスタンプを使ってリクエストごとに署名を生成
+- トークン（秘密鍵）自体がネットワークを流れない
+- リプレイ攻撃も防げる
+
+しかし、**Google Apps Script (GAS) の制約により、HTTP リクエストのヘッダーを読み取ることができません**。署名検証はヘッダーに含まれる `X-Slack-Signature` と `X-Slack-Request-Timestamp` を使用するため、GAS 環境では実装不可能です。
+
+このため、ヘッダーが読めない GAS 環境下では、**Verification Token が唯一の現実的な認証手段**となります。
+
+#### 認証の仕組み
+
+1. Slack からのリクエストには、body に `token` パラメータが含まれます
+2. GAS 側で、この `token` をスクリプトプロパティに保存した `SLACK_VERIFICATION_TOKEN` と比較します
+3. 一致した場合のみ、リクエストを処理します
+
+実装コードは `src/auth.ts` にまとめられています。
+
+#### セキュリティ対策
+
+トークン漏洩のリスクを最小限に抑えるため、以下の対策を推奨します：
+
+1. **トークンを絶対に公開しない**
+
+   - GitHub などにコミットしない
+   - スクリプトプロパティに保存し、コードには含めない
+
+2. **GAS の Web アプリ URL を秘密にする**
+
+   - URL が漏洩すると、トークンと組み合わせてなりすましが可能
+
+3. **ログを定期的に監視する**
+
+   - 不審なリクエストがないか、スプレッドシートのログを確認
+
+4. **可能であれば別の実行環境を検討する**
+   - Node.js + Express などのサーバーであれば、署名検証が可能
 
 ### エラー: "Environment variable X is not set"
 
