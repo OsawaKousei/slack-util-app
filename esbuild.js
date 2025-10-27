@@ -1,8 +1,5 @@
 import esbuild from "esbuild";
 import { GasPlugin } from "esbuild-gas-plugin";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 esbuild
   .build({
@@ -11,9 +8,8 @@ esbuild
     minify: true,
     outfile: "./dist/main.js",
     plugins: [GasPlugin],
-    define: {
-      "process.env.APP_API_KEY": JSON.stringify(process.env.APP_API_KEY),
-    },
+    sourcemap: "inline",
+    target: ["es2020"],
   })
   .catch((error) => {
     console.log("ビルドに失敗しました");

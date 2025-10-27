@@ -1,0 +1,61 @@
+{
+  "display_information": {
+    "name": "slack-util-app",
+    "description": "A simple Slack app for utility commands.",
+    "background_color": "#2f6327"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "slack-util-app",
+      "always_online": false
+    },
+    "slash_commands": [
+      {
+        "command": "/hello",
+        "url": "your-app-url-here",
+        "description": "Responds with a greeting.",
+        "should_escape": false
+      },
+      {
+        "command": "/mail",
+        "url": "your-app-url-here",
+        "description": "Retrieves recent emails from Gmail and posts them to Slack.",
+        "should_escape": false
+      },
+      {
+        "command": "/logtest",
+        "url": "your-app-url-here",
+        "description": "Tests spreadsheet logging functionality.",
+        "should_escape": false
+      },
+      {
+        "command": "/slack-archive",
+        "url": "your-app-url-here",
+        "description": "Archives Slack messages to Google Drive.",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "commands",
+        "chat:write",
+        "channels:read",
+        "channels:history",
+        "channels:join",
+        "groups:read",
+        "groups:history"
+      ]
+    }
+  },
+  "settings": {
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "your-app-url-here"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
