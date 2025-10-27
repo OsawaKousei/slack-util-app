@@ -610,7 +610,6 @@ MIT License
 ---
 
 **開発者**: OsawaKousei  
-**リポジトリ**: https://github.com/OsawaKousei/slack-util-app  
-**ブランチ**: dev
+**リポジトリ**: https://github.com/OsawaKousei/slack-util-app
 
 ご質問や問題が発生した場合は、GitHub Issues でお知らせください。
